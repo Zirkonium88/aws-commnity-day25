@@ -6,15 +6,17 @@ import os
 from typing import Dict, List
 
 import cdk_nag
-from aws_cdk import App, Aspects, DefaultStackSynthesizer, Environment, Stack, Tags
+from aws_cdk import Aspects, DefaultStackSynthesizer, Environment, Stack, Tags
 from aws_pdk.cdk_graph import CdkGraph, FilterPreset
 from aws_pdk.cdk_graph_plugin_diagram import CdkGraphDiagramPlugin
+from aws_pdk.cdk_graph_plugin_threat_composer import CdkGraphThreatComposerPlugin
+from aws_pdk.pdk_nag import PDKNagApp
 
 from azure_pipelines.load_env.config import CDKConfig
 from cdk_sample_repo.cdk_sample_repo_stack import CdkSampleRepoStack
 
 
-class CdkSampleRepo(App):
+class CdkSampleRepo(PDKNagApp):
     """Create the CDK App for network management."""
 
     def __init__(self, *args, **kwargs):
@@ -95,6 +97,11 @@ async def main() -> None:
     graph = CdkGraph(
         app,
         plugins=[
+            CdkGraphThreatComposerPlugin(
+                application_details={
+                    "name": "applications",
+                }
+            ),
             CdkGraphDiagramPlugin(
                 diagrams=[
                     {
