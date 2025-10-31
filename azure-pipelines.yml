@@ -1,0 +1,29 @@
+trigger:
+  branches:
+    include:
+    - master
+
+pool:
+  name: MRHT-Infrastructure
+  vmImage: 'ubuntu-latest'
+
+stages:
+- stage: GitTag
+  displayName: Create-Git-Tag
+  jobs:
+  - job: CreateGitTag
+    steps:
+    - checkout: self
+      persistCredentials: true
+    - task: Bash@3
+      inputs:
+        targetType: 'inline'
+        script: |
+          git config user.email "buildagent@mrh-trowe.com"
+          git config user.name "BuildAgent"
+          git tag -a "Rel-${BUILD_BUILDNUMBER}" -m "${BUILD_SOURCEVERSIONMESSAGE}"
+          git push origin "Rel-${BUILD_BUILDNUMBER}"
+      displayName: 'Create Git Tag from Pull Request'
+      env:
+        BUILD_BUILDNUMBER: $(BUILD_BUILDNUMBER)
+        BUILD_SOURCEVERSIONMESSAGE: $(BUILD_SOURCEVERSIONMESSAGE)

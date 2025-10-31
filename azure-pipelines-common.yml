@@ -1,0 +1,20 @@
+steps:
+- task: NodeTool@0
+  inputs:
+    versionSpec: '22.x'
+    displayName: 'Install Node.js'
+- script: |
+    npm install -g aws-cdk@2.1005.0
+    pip install -r requirements.txt
+    pip install -r requirements-dev.txt
+    ls -a
+    pwd
+  displayName: 'Installing CDK and relevant Python packages'
+- task: Bash@3
+  inputs:
+    targetType: 'inline'
+    script: |
+      env
+  displayName: 'Log enviornment varibales'
+  env:
+    AWS_ACCCOUNT_ID: $(account_id)

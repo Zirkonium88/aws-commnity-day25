@@ -1,0 +1,42 @@
+trigger:
+- none
+
+parameters:
+- name: AccountID
+  displayName: AWS Account ID
+  type: string
+  default: 804620963920
+- name: CDKDeploymentRole
+  displayName: CDK Deployment Role
+  type: string
+  default: cdk-hnb659fds-deploy-role
+- name: AwsRegion
+  displayName: AWS Region
+  type: string
+  default: eu-central-1
+- name: environmentName
+  type: string
+  default: 'generalpurpose'
+
+pool:
+  name: MRHT-Infrastructure
+  vmImage: 'ubuntu-latest'
+
+stages:
+- stage: '${{ parameters.environmentName }}'
+  displayName: DeployStage-${{ parameters.environmentName }}
+  jobs:
+  - job: DeployApp
+    steps:
+    - template: azure-pipelines-common.yml
+    - task: Bash@3
+      inputs:
+        targetType: 'inline'
+        script: |
+          echo "Deploying App in ${parameters.environmentName} in region ${parameters.AwsRegion}"
+          KST=$(aws sts assume-role --endpoint-url https://sts.${{ parameters.AwsRegion }}.amazonaws.com --role-arn arn:aws:iam::${{ parameters.AccountID }}:role/${{ parameters.CDKDeploymentRole }}-${{ parameters.AccountID }}-${{ parameters.AwsRegion }} --role-session-name $(Build.SourceVersion) --duration-seconds 3600)
+          export AWS_ACCESS_KEY_ID=$(echo $KST | jq -r .Credentials.AccessKeyId)
+          export AWS_SECRET_ACCESS_KEY=$(echo $KST | jq -r .Credentials.SecretAccessKey)
+          export AWS_SESSION_TOKEN=$(echo $KST | jq -r .Credentials.SessionToken)
+          cdk deploy --ci --require-approval never --context environment=${{ parameters.environmentName }}
+      displayName: 'Deploying CDK app'

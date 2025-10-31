@@ -1,0 +1,11 @@
+digraph INFRA {
+  node [ color = "black", fillcolor = "#E6E6E6", height =1, style = "filled,bold,rounded", fontname = "Arial" ];
+  "SecureS3Bucket" [ label = "SecureS3Bucket
+(AWS::S3::Bucket)", shape =cylinder, fillcolor = "#FFF5CD" ];
+  "SecureS3BucketKmsKey" [ label = "SecureS3BucketKmsKey
+(AWS::KMS::Key)", shape =rectangle ];
+  "SecureS3BucketKmsKeyAlias" [ label = "SecureS3BucketKmsKeyAlias
+(AWS::KMS::Alias)", shape =rectangle ];
+  "SecureS3Bucket" -> "SecureS3BucketKmsKey";
+  "SecureS3BucketKmsKeyAlias" -> "SecureS3BucketKmsKey";
+}

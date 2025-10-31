@@ -1,0 +1,54 @@
+fail_fast: true
+repos:
+  - repo: 'https://github.com/psf/black'
+    rev: 25.1.0
+    hooks:
+      - id: black
+        name: Python Style Formatting
+  - repo: https://github.com/PyCQA/flake8
+    rev: 7.2.0
+    hooks:
+      - id: flake8
+        name: Python Style (PEP8) Convention Test
+        args:
+          - '--ignore=E501,W503'
+  - repo: 'https://github.com/PyCQA/pydocstyle'
+    rev: 6.3.0
+    hooks:
+      - id: pydocstyle
+        name: Checking Documentation Strings
+        args:
+          - '--ignore=D100,D213,D406,D407,D413,D203,D104'
+  - repo: https://github.com/pycqa/isort
+    rev: 5.13.2
+    hooks:
+      - id: isort
+        name: Sort Python imports
+        args: ["--profile", "black"]
+  - repo: local
+    hooks:
+      - id: pytest
+        name: Python Unit Tests
+        entry: .venv/bin/py.test
+        pass_filenames: false
+        always_run: false
+        language: script
+  - repo: local
+    hooks:
+      - id: cdk-synth
+        name: CDK Compilation Test
+        entry: cdk synth --context environment=developer
+        pass_filenames: false
+        always_run: false
+        language: system
+        files: '^.+\.(py|ts|js|cs|fs|java)'
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: trailing-whitespace
+      - id: check-yaml
+      - id: check-added-large-files
+      - id: detect-aws-credentials
+        args:
+          - '--allow-missing-credentials'
+      - id: detect-private-key

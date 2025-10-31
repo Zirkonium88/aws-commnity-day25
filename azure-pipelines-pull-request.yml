@@ -1,0 +1,111 @@
+trigger:
+- none
+
+parameters:
+- name: AccountID
+  displayName: AWS Account ID
+  type: string
+  default: 947429061527
+- name: CDKDeploymentRole
+  displayName: CDK Deployment Role
+  type: string
+  default: cdk-hnb659fds-deploy-role
+- name: AwsRegion
+  displayName: AWS Region
+  type: string
+  default: eu-central-1
+- name: environmentName
+  type: string
+  default: 'developer'
+
+pool:
+  name: MRHT-Infrastructure
+  vmImage: 'ubuntu-latest'
+
+stages:
+- stage: RunningCDKSynthesize
+  displayName: CIStage-Creation
+  jobs:
+  - job: IaCCreationValidation
+    steps:
+    - checkout: self
+    - template: azure-pipelines-common.yml
+    - task: Bash@3
+      inputs:
+        targetType: 'inline'
+        script: |
+          KST=$( aws sts assume-role --role-arn arn:aws:iam::${{ parameters.AccountID }}:role/${{ parameters.CDKDeploymentRole }}-${{ parameters.AccountID }}-${{ parameters.AwsRegion }} --role-session-name $(Build.SourceVersion) --duration-seconds 3600)
+          export AWS_ACCESS_KEY_ID=$(echo $KST | jq -r .Credentials.AccessKeyId)
+          export AWS_SECRET_ACCESS_KEY=$(echo $KST | jq -r .Credentials.SecretAccessKey)
+          export AWS_SESSION_TOKEN=$(echo $KST | jq -r .Credentials.SessionToken)
+          cdk synth -o synth/templates --context environment=${{ parameters.environmentName }}
+      displayName: 'Validating AWS CDK output'
+      env:
+        AWS_DEFAULT_REGION: ${{ parameters.AwsRegion }}
+    - task: Bash@3
+      inputs:
+        targetType: 'inline'
+        script: |
+          echo "Generating CDK diff file in" ${{ parameters.environmentName }} $AWS_DEFAULT_REGION
+          cdk diff cdk synth --context environment=${{ parameters.environmentName }} -o synth/templates -c aws-cdk:enableDiffNoFail=true --no-color "*" 2>&1 | sed -n '/Resources/,/Outputs/p' | sed 's/├/\+/g; s/│/|/g; s/─/-/g; s/└/`/g' | head -n -1 | tee output.log
+          sed -i '1 i\```bash' output.log
+          sed -i -e '$a```' output.log
+          python3 azure_pipelines/pull_requests/comment.py
+      env:
+        SYSTEM_ACCESSTOKEN: $(System.AccessToken)
+      displayName: 'Create Pull Request Comment on CDK Synth Results'
+
+- stage: RunningUnitTests
+  displayName: CIStage-Testing
+  jobs:
+  - job: Pytest
+    steps:
+    - template: azure-pipelines-common.yml
+    - task: Bash@3
+      inputs:
+        targetType: 'inline'
+        script: |
+          pytest --doctest-modules --junitxml=junit/test-results.xml --cov=. --cov-report=xml
+      env:
+        AWS_DEFAULT_REGION: ${{ parameters.environmentName }}
+      displayName: 'Running Python unit tests'
+    - task: PublishTestResults@2
+      condition: succeededOrFailed()
+      inputs:
+        testResultsFiles: '**/test-*.xml'
+        testRunTitle: 'Publish test results for Python $(python.version)'
+
+- stage: DeployInDeveloper
+  displayName: DeployStage-${{ parameters.environmentName }}
+  jobs:
+  - job: DeployApp
+    steps:
+    - template: azure-pipelines-common.yml
+    - task: Bash@3
+      inputs:
+        targetType: 'inline'
+        script: |
+          KST=$( aws sts assume-role --endpoint-url https://sts.${{ parameters.AwsRegion }}.amazonaws.com --role-arn arn:aws:iam::${{ parameters.AccountID }}:role/${{ parameters.CDKDeploymentRole }}-${{ parameters.AccountID }}-${{ parameters.AwsRegion }} --role-session-name $(Build.SourceVersion) --duration-seconds 3600)
+          export AWS_ACCESS_KEY_ID=$(echo $KST | jq -r .Credentials.AccessKeyId)
+          export AWS_SECRET_ACCESS_KEY=$(echo $KST | jq -r .Credentials.SecretAccessKey)
+          export AWS_SESSION_TOKEN=$(echo $KST | jq -r .Credentials.SessionToken)
+          cdk deploy --all --ci --require-approval never --context environment=${{ parameters.environmentName }}
+          if [ $? -eq 0 ]; then
+            echo "Deploying CDK App succeeded"
+          else
+            echo "Deploying CDK App failed"
+            exit 1
+          fi
+          python3 azure_pipelines/pull_requests/architecture.py
+      env:
+        SYSTEM_ACCESSTOKEN: $(System.AccessToken)
+      displayName: 'Deploying CDK app'
+    - task: Bash@3
+      condition: succeededOrFailed()
+      inputs:
+        targetType: 'inline'
+        script: |
+          python3 azure_pipelines/pull_requests/architecture.py
+      env:
+        SYSTEM_ACCESSTOKEN: $(System.AccessToken)
+      displayName: 'Posting deplyoed architecture'
